@@ -1,0 +1,161 @@
+# Pokédex: estudo de consumo de API com Java
+
+Projeto **educativo**, feito para aprender como uma aplicação Java consome uma API externa e entrega os dados para uma página web. A API usada é a [PokéAPI](https://pokeapi.co/), gratuita e aberta.
+
+Você digita o nome de um pokémon, e a página mostra a imagem, o número, os tipos, a altura, o peso, os status base e os quatro primeiros golpes.
+
+> Este projeto não tem fins comerciais e não tem vínculo com Nintendo, Game Freak ou The Pokémon Company. Pokémon e seus personagens são marcas de seus respectivos donos. Os dados e as imagens vêm da PokéAPI.
+
+---
+
+## O que este projeto ensina
+
+- Fazer uma requisição HTTP em Java com `HttpClient`.
+- Converter JSON em objetos Java com Jackson, usando `record`.
+- Criar um servidor HTTP simples, sem framework, com `com.sun.net.httpserver`.
+- Separar responsabilidades: o serviço que fala com a API, o servidor e a interface.
+- Consumir o servidor Java no navegador com `fetch` em JavaScript.
+- Tratar erros: pokémon inexistente, falha de rede e campo vazio.
+
+---
+
+## Tecnologias
+
+| Parte | Tecnologia |
+| --- | --- |
+| Backend | Java (usa `record`, então precisa do Java 16 ou superior) |
+| Build | Maven |
+| Cliente HTTP | `java.net.http.HttpClient` |
+| JSON | Jackson (`jackson-databind`) |
+| Servidor | `com.sun.net.httpserver.HttpServer` |
+| Frontend | HTML, CSS e JavaScript puros |
+| Fonte de dados | PokéAPI v2 |
+
+---
+
+## Estrutura do projeto
+
+```
+pokedex/
+├── pom.xml
+└── src/main/
+    ├── java/
+    │   ├── Main.java            # servidor HTTP e rotas
+    │   ├── PokeApiService.java  # consulta a PokéAPI
+    │   └── Pokemon.java         # records que representam o JSON
+    └── resources/
+        ├── html/index.html      # estrutura da página
+        ├── css/style.css        # visual
+        └── js/main.js           # busca e montagem da tela
+```
+
+---
+
+## Como funciona
+
+O navegador nunca fala direto com a PokéAPI. Ele fala com o servidor Java, e o servidor Java fala com a PokéAPI.
+
+```
+Navegador                Servidor Java (Main)            PokéAPI
+   |                            |                           |
+   | GET /api/pokemon?nome=x    |                           |
+   |--------------------------->|                           |
+   |                            | GET /api/v2/pokemon/x     |
+   |                            |-------------------------->|
+   |                            |        JSON completo      |
+   |                            |<--------------------------|
+   |                            | (Jackson lê e filtra)     |
+   |      JSON enxuto           |                           |
+   |<---------------------------|                           |
+   | (main.js monta o card)     |                           |
+```
+
+### 1. `PokeApiService`: falando com a API
+
+O método `buscarPokemon(String nome)` monta a URL `https://pokeapi.co/api/v2/pokemon/{nome}`, envia um `GET` e olha o código da resposta:
+
+- **200:** o JSON é convertido em um objeto `Pokemon`.
+- **404:** devolve `Optional.empty()`, que significa pokémon não encontrado.
+- **qualquer outro:** lança `IOException`.
+
+O nome é convertido para minúsculas e tem os espaços das pontas removidos antes de montar a URL.
+
+### 2. `Pokemon.java`: o molde do JSON
+
+A PokéAPI devolve um JSON enorme. Os `record` declaram só os campos que interessam: `id`, `name`, `height`, `weight`, `types`, `stats`, `moves` e `sprites`. A anotação `@JsonIgnoreProperties(ignoreUnknown = true)` faz o Jackson ignorar todo o resto.
+
+Quando o nome do JSON não é um nome válido de variável Java, a anotação `@JsonProperty` faz a ligação:
+
+```java
+record StatSlot(@JsonProperty("base_stat") int baseStat, StatInfo stat) {}
+record Other(@JsonProperty("official-artwork") Artwork officialArtwork) {}
+```
+
+Ao devolver o objeto para o navegador, o Jackson usa de novo os nomes da anotação. Por isso o JS lê `base_stat` e `official-artwork`, e não `baseStat` e `officialArtwork`.
+
+### 3. `Main`: o servidor
+
+O servidor escuta na porta `8080` e tem duas rotas:
+
+- **`/api/pokemon?nome=...`:** chama o `PokeApiService`, converte o resultado em JSON e responde. Em caso de erro responde com `{"erro": "..."}` e o código HTTP correspondente.
+- **`/`:** serve os arquivos estáticos (`html`, `css` e `js`) que estão em `resources`. A raiz `/` abre o `index.html`. Há uma verificação contra `..` no caminho, para ninguém sair da pasta.
+
+### 4. O frontend
+
+O `main.js` lê o campo de busca, chama `fetch('/api/pokemon?nome=...')` e usa o JSON recebido para preencher a página:
+
+- o nome, o número e a imagem (arte oficial, com o sprite pequeno como alternativa);
+- os tipos, cada um com a cor definida no objeto `cores`;
+- as barras de status, com largura proporcional a `valor × 100 / 255`;
+- os quatro primeiros golpes.
+
+Se a resposta vier com erro, a mensagem aparece abaixo do campo de busca. O card fica escondido (classe `escondido`) até a primeira busca com sucesso.
+
+---
+
+## Como rodar
+
+**Pré-requisitos:** Java 16 ou superior e Maven instalados.
+
+```bash
+cd pokedex
+mvn compile exec:java -Dexec.mainClass="Main"
+```
+
+Depois abra [http://localhost:8080](http://localhost:8080) e busque, por exemplo, `pikachu`, `zekrom` ou `rayquaza`. Para parar o servidor, use `Ctrl+C`.
+
+Você também pode testar a API do servidor direto no navegador:
+
+```
+http://localhost:8080/api/pokemon?nome=pikachu
+```
+
+---
+
+## Limitações conhecidas
+
+Por ser um projeto de estudo, algumas coisas ficaram simples de propósito:
+
+- Não há cache: cada busca faz uma nova chamada à PokéAPI.
+- A busca é só por nome exato (em inglês), não por número nem por nome parcial.
+- Os arquivos estáticos são lidos como texto, então o servidor não serve imagens ou outros arquivos binários.
+- Quando o nome vem vazio, o servidor responde 404. O código mais adequado seria 400.
+- Não há testes automatizados.
+
+---
+
+## Ideias para evoluir
+
+- Aceitar o número do pokémon além do nome.
+- Guardar em memória os pokémons já buscados (cache), para não repetir chamadas.
+- Adicionar botões de anterior e próximo.
+- Mostrar a versão brilhante (shiny) do sprite.
+- Migrar o servidor para Spring Boot e comparar o código com esta versão.
+- Escrever testes para o `PokeApiService`.
+
+---
+
+## Créditos
+
+- Dados e imagens: [PokéAPI](https://pokeapi.co/).
+- Fonte: Chakra Petch, via Google Fonts.

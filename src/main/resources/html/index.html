@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="/css/style.css">
+  <title>Pokédex</title>
+</head>
+
+<body>
+
+  <div class="busca">
+    <input type="text" id="campoNome" placeholder="Digite o nome de um pokémon:" autofocus>
+    <button id="botton">Buscar</button>
+  </div>
+
+  <p id="mensagem"></p>
+
+  <div id="card" class="escondido">
+
+    <div class="pkmn">
+      <p id="idP" class="id"></p>
+      <img id="img">
+      <h2 id="nomeP" class="nomeP"></h2>
+      <div id="tipos" class="tipos"></div>
+      <p id="medidas" class="medidas"></p>
+    </div>
+
+    <div class="detalhes">
+      <div class="painel">
+        <h3>Status</h3>
+        <div id="status"></div>
+      </div>
+      <div class="painel">
+        <h3>Golpes</h3>
+        <ul id="golpes"></ul>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="/js/main.js"></script>
+
+</body>
+
+</html>
